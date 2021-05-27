@@ -1,13 +1,15 @@
-package merkelehashtree
+package mht
 
 import (
 	"bytes"
+	"crypto/sha256"
 )
 
 type Node struct {
 	left  *Node
 	right *Node
 	block *block
+	Hash  []byte
 }
 
 type block struct {
@@ -37,6 +39,12 @@ func New(r *bytes.Reader, chunkSize int64) (*Node, error) {
 		}
 		copy(n.block.data, b[0:c])
 		n.block.data = n.block.data[0:c]
+		h := sha256.New()
+		_, err = h.Write(n.block.data)
+		if err != nil {
+			return nil, err
+		}
+		n.Hash = h.Sum(nil)
 		leaves = append(leaves, n)
 	}
 
@@ -48,12 +56,23 @@ func New(r *bytes.Reader, chunkSize int64) (*Node, error) {
 		above := []*Node{}
 		for i := 0; i < len(nodes); {
 			n := &Node{}
+			h := sha256.New()
 			if i+1 < len(nodes) {
 				n.left = nodes[i]
 				n.right = nodes[i+1]
+				_, err := h.Write(n.left.Hash)
+				if err != nil {
+					return nil, err
+				}
+				n.Hash = h.Sum(n.right.Hash)
 				i += 2
 			} else {
 				n.left = nodes[i]
+				_, err := h.Write(n.left.Hash)
+				if err != nil {
+					return nil, err
+				}
+				n.Hash = h.Sum(nil)
 				i++
 			}
 			above = append(above, n)
